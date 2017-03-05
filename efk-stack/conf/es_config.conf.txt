@@ -1,0 +1,5 @@
+ type elasticsearch
+ logstash_format true
+ logstash_prefix efk
+ hosts 127.0.0.1:9200
+ flush_interval 5s

@@ -1,0 +1,5 @@
+MYSYSLOGPROG %{PROG}(?:\[%{POSINT}\])?
+RELUPATH (([\w_%!$@:.,~-]+|\\.)?[./]?([\w_%!$@:.,~-]+|\\.)*)+
+LINENUM %{RELUPATH}(%{NUMBER})?
+JTHREAD (\[([^\]]*)\])
+CTHREAD ([^ ]*)

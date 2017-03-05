@@ -1,0 +1,654 @@
+####
+## Source descriptions:
+##
+
+## built-in TCP input
+## @see http://docs.fluentd.org/articles/in_forward
+<source>
+  @type forward
+  @id forward_input
+</source>
+
+## built-in UNIX socket input
+#<source>
+#  @type unix
+#  @id unix_input
+#</source>
+
+# HTTP input
+# POST http://localhost:8888/<tag>?json=<json>
+# POST http://localhost:8888/td.myapp.login?json={"user"%3A"me"}
+# @see http://docs.fluentd.org/articles/in_http
+<source>
+  @type http
+  @id http_input
+  port 8880
+</source>
+
+## live debugging agent
+<source>
+  @type debug_agent
+  @id debug_agent_input
+
+  bind 127.0.0.1
+  port 24230
+</source>
+
+## monitoring agent
+<source>
+  @type monitor_agent
+  @id monitor_agent_input
+
+  port 24220
+</source>
+
+####
+## Output descriptions:
+##
+
+## match tag=debug.** and dump to console
+<match debug.**>
+  @type stdout
+  @id stdout_output
+</match>
+
+
+ # The following logs are system logs
+ # For RH/CentOs, you probably want to create a adm group,
+ # ownership on the files such that the adm group can read them.
+
+
+## kern.log
+## Ubuntu
+## Apr 19 16:56:11 perfnode128 kernel: [4285108.074822] sched: RT throttling activated
+#<source>
+#  @type tail
+#  @id ubuntu_kern_log_input
+#  format multiline
+#  format_firstline /\w{3} \d{1,2} \d{2}:\d{2}:\d{2}/
+#  format1 /^(?<my_event_time>[^ ]* [^ ]* [^ ]*)\s+([^ ]*)\s+(?<thread>[^ ]*(\w+)(\[\d+\])?):(?<message>.*)$/
+#  time_format "%b %d %H:%M:%S"
+#  time_key my_event_time
+#  keep_time_key true
+#  path /var/log/kern.log
+#  tag kernlog
+#  pos_file /var/log/td-agent/tmp/kernlog.pos
+#</source>
+#
+## syslog
+## Ubuntu
+## May  5 06:44:58 perfnode128 rsyslogd: [origin software="rsyslogd" swVersion="5.8.6" x-pid="760" x-info="http://www.rsyslog.com"] rsyslogd was HUPed
+#<source>
+#  @type tail
+#  @id ubuntu_syslog_input
+#  format multiline
+#  format_firstline /\w{3} \d{1,2} \d{2}:\d{2}:\d{2}/
+#  format1 /^(?<my_event_time>[^ ]* [^ ]* [^ ]*)\s+([^ ]*)\s+(?<thread>[^ ]*(\w+)(\[\d+\])?):(?<message>.*)$/
+#  time_format "%b %d %H:%M:%S"
+#  time_key my_event_time
+#  keep_time_key true
+#  path /var/log/syslog
+#  tag syslog
+#  pos_file /var/log/td-agent/tmp/messages.pos
+#</source>
+#
+## messages
+## RH7
+## Apr 18 08:47:46 qa-node92 yum[30001]: Erased: -oozie-internal-4.2.0.201604150738-1.noarch
+#<source>
+#  @type tail
+#  @id redhat_messages_input
+#  format multiline
+#  format_firstline /\w{3} \d{1,2} \d{2}:\d{2}:\d{2}/
+#  format1 /^(?<my_event_time>[^ ]* [^ ]* [^ ]*)\s+([^ ]*)\s+(?<thread>[^ ]*(\w+)(\[\d+\])?):(?<message>.*)$/
+#  time_format "%b %d %H:%M:%S"
+#  time_key my_event_time
+#  keep_time_key true
+#  path /var/log/messages
+#  tag syslog
+#  pos_file /var/log/td-agent/tmp/messages.pos
+#</source>
+#
+## mysql/error.log
+## 160504 15:50:09 [Note] /usr/sbin/mysqld: Normal shutdow
+#<source>
+#  @type tail
+#  @id mysql_error_input
+#  format multiline
+#  format_firstline /\d{6} \d{2}:\d{2}:\d{2}/
+#  format1 /^(?<my_event_time>[^ ]* [^ ]*)\s+(\[(?<level>[^ ]*)\])\s+(?<thread>[^ ]*):(?<message>.*)$/
+#  time_format "%y%m%d %H:%M:%S"
+#  time_key my_event_time
+#  keep_time_key true
+#  path /var/log/mysql/error.log
+#  tag mysql_error
+#  pos_file /var/log/td-agent/tmp/mysql_error.pos
+#</source>
+
+# hbase rest
+# 2016-05-20 08:18:26,025 INFO  [main] util.VersionInfo: HBase 1.1.1--1602-SNAPSHOT
+# 2016-05-20 08:18:42,9138 ERROR Cidcache fs/client/fileclient/cc/cidcache.cc:1683 Thread: 15543 error Read-only file system(30),
+# Fri May 20 08:18:45 PDT 2016 Starting rest on qa-node91.qa.lab
+<source>
+  @type tail
+  @id hbase_rest_input
+  format multiline_grok
+  multiline_start_regexp /\d{4}-\d{1,2}-\d{1,2}|\w{3} \w{3}\s+\d{1,2} \d{2}:\d{2}:\d{2}|\w{3} \w{3}\s+\d{1,2} \d{2}:\d{2}:\d{2}/
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{LOGLEVEL:level}(\s+)\[%{CTHREAD}\]\s+%{LINENUM:class}:\s+%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{LOGLEVEL:level}(\s+)%{WORD}(\s+)%{LINENUM:class}(\s+)Thread:\s+%{NUMBER:thread}\s+%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{GREEDYDATA:message}
+  </grok>
+  time_key my_event_time
+  keep_time_key true
+  time_format "%Y-%m-%d %H:%M:%S,%N"
+  custom_pattern_path /tmp/grok_patterns
+  path /var/log/hbase/hbase-*-HBASERESTSERVER-*.log.out
+  tag hbaserest
+  pos_file /var/log/td-agent/tmp/hbase-rest.pos
+</source>
+
+# hbase thrift
+<source>
+  @type tail
+  @id hbase_thrift_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)(?<class>\[([^:]*)): (?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  time_format "%Y-%m-%d %H:%M:%S,%N"
+  path /var/log/hbase/hbase-*-HBASETHRIFTSERVER-*.log.out
+  tag hbasethrift
+  pos_file /var/log/td-agent/tmp/hbase-thrift.pos
+</source>
+
+# hbase regionserver
+# Thu May  5 19:04:48 PDT 2016 Waiting for filesystem to come up
+# 2016-05-05 19:04:54,6526 ERROR Client fs/client/fileclient/cc/client.cc:6751 Thread: 6386 CheckImpersonation: The directory /var/log/conf/proxy is not owned by root
+# 2016-05-05 19:05:00,674 INFO  [main] util.ServerCommandLine: env:HBASE_PID_DIR=/var/log/pid
+# 2016-05-06 11:07:22,121 INFO  [regionserver/qa-node92.qa.lab/10.10.100.92:16020.logRoller] wal.FSHLog: Archiving fs:/hbase/WALs/qa-node92.qa.lab,16020,1462500437313/qa-node92.qa.lab%2C16020%2C1462500437313.default.1462554441921 to fs:/hbase/oldWALs/qa-node92.qa.lab%2C16020%2C1462500437313.default.1462554441921
+#  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)\[(?<thread>([^ ]*))\] (?<class>[^ ]*):\s+(?<message>.*)$/
+#  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)([^ ]*) (?<class>[^ ]*)\s+Thread:\s+(?<thread>(\d+)) (?<message>.*)$/
+<source>
+  @type tail
+  @id hbase_region_input
+  format multiline_grok
+  multiline_start_regexp /\d{4}-\d{1,2}-\d{1,2}|\w{3} \w{3}\s+\d{1,2} \d{2}:\d{2}:\d{2}|\w{3} \w{3}\s+\d{1,2} \d{2}:\d{2}:\d{2}/
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{LOGLEVEL:level}(\s+)\[%{CTHREAD:thread}\]\s+%{LINENUM:class}:\s+%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{LOGLEVEL:level}(\s+)%{WORD}(\s+)%{LINENUM:class}(\s+)Thread:\s+%{NUMBER:thread}\s+%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{GREEDYDATA:message}
+  </grok>
+  time_key my_event_time
+  keep_time_key true
+  time_format "%Y-%m-%d %H:%M:%S,%N"
+  custom_pattern_path /tmp/grok_patterns
+  path /var/log/hbase/hbase-*-REGIONSERVER-*.log.out
+  tag hbaseregionserver
+  pos_file /var/log/td-agent/tmp/hbase-regionserver.pos
+</source>
+
+# hbase master
+# Fri May 20 08:17:15 PDT 2016 Waiting for filesystem to come up
+# 2016-05-20 08:17:26,926 INFO  [main] util.VersionInfo: HBase 1.1.1--1602-SNAPSHOT
+# 2016-05-20 08:17:27,439 INFO  [main] util.ServerCommandLine: env:JAVA_HOME=/usr/lib/jvm/java-1.7.0-openjdk-1.7.0.101-2.6.6.1.el7_2.x86_64/jre
+# 2016-05-05 16:25:13,887 INFO [mfs163:16000.activeMasterManager] client.HTable: BufferedMutator Use HBase ThreadPool
+# 2016-05-02 03:04:36,268 INFO [mfs81:16000.activeMasterManager-SendThread(mfs81.qa.lab:5181)] zookeeper.ClientCnxn: Unable to read additional data from server sessionid 0x540c9957e8002e, likely server has closed socket, closing socket connection and attempting reconnect
+<source>
+  @type tail
+  @id hbase_master_input
+  format multiline_grok
+  multiline_start_regexp /\d{4}-\d{1,2}-\d{1,2}|\w{3} \w{3}\s+\d{1,2} \d{2}:\d{2}:\d{2}|\w{3} \w{3}\s+\d{1,2} \d{2}:\d{2}:\d{2}/
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{LOGLEVEL:level}(\s+)\[%{CTHREAD:thread}\]\s+%{LINENUM:class}:\s+%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{LOGLEVEL:level}(\s+)%{WORD}(\s+)%{LINENUM:class}(\s+)Thread:\s+%{NUMBER:thread}\s+%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{GREEDYDATA:message}
+  </grok>
+  time_key my_event_time
+  keep_time_key true
+  time_format "%Y-%m-%d %H:%M:%S,%N"
+  custom_pattern_path /tmp/grok_patterns
+  path /var/log/hbase/hbase-*-MASTER-*.log.out
+  tag hbasemaster
+  pos_file /var/log/td-agent/tmp/hbase-master.pos
+</source>
+
+# hive log
+<source>
+  @type tail
+  @id hive_meta_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)\[([^:]*): (?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/hive/hadoop-cmf-*-HIVEMETASTORE-*.log.out
+  tag hivemeta
+  pos_file /var/log/td-agent/tmp/hive.pos
+</source>
+
+# hive log
+<source>
+  @type tail
+  @id hive_hstwo_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)\[([^:]*): (?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/hive/hadoop-cmf-*-HIVESERVER2-*.log.out
+  tag hiveserver
+  pos_file /var/log/td-agent/tmp/hivehstwo.pos
+</source>
+
+# hue log
+#[27/Apr/2016 20:42:29 ] settings     INFO     Welcome to Hue 3.9.0
+#[27/Apr/2016 13:42:30 -0700] appmanager   DEBUG    Loaded Desktop Libraries: hadoop, liboauth, liboozie, libopenid, librdbms, libsaml, libsentry, libsolr, libzookeeper
+#[06/Jun/2016 14:42:21 -0700] __init__     WARNING  Couldn't import snappy. Support for snappy compression disabled.
+#[18/May/2016 09:35:09 -0700] settings     DEBUG    Installed Django modules: DesktopModule(hadoop: hadoop),DesktopModule(liboauth: liboauth),DesktopModule(liboozie: liboozie),DesktopModule(libopenid: libopenid),DesktopModule(librdbms: librdbms),DesktopModule(libsaml: libsaml),DesktopModule(libsentry: libsentry),DesktopModule(libsolr: libsolr),DesktopModule(libzookeeper: libzookeeper),DesktopModule(Hue: desktop),DesktopModule(Solr Indexer: indexer),DesktopModule(About: about),DesktopModule(Hive Editor: beeswax),DesktopModule(File Browser: filebrowser),DesktopModule(HBase Browser: hbase),DesktopModule(Help: help),DesktopModule(Job Browser: jobbrowser),DesktopModule(Job Designer: jobsub),DesktopModule(Metastore Manager: metastore),DesktopModule(Oozie Editor/Dashboard: oozie),DesktopModule(Proxy: proxy),DesktopModule(User Admin: useradmin)
+<source>
+  @type tail
+  @id hue_input
+  format multiline
+  format_firstline /^\[\d{2}\/\w{3}\/\d{4}(\s+)\d{2}:\d{2}:\d{2}(\s+)([-+]\d{4})?\]/
+  format1 /^\[(?<my_event_time>[^ ]* [^ ]* ([^ ]*)?)\](\s+)(?<thread>[^ ]*)(\s+)(?<level>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  time_format "%d/%b/%Y %R:%M:%S %Z"
+  path /var/log/hue/*.log
+  tag hue
+  pos_file /var/log/td-agent/tmp/hue.pos
+</source>
+
+# hue stdout log
+# Wed May 25 20:00:45 PDT 2016 runcpserver started, pid 24132
+<source>
+  @type tail
+  @id hue_stdout_input
+  format multiline
+  format_firstline /\w{3} \w{3}(\s+)\d{1,2} \d{2}:\d{2}:\d{2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]* [^ ]* [^ ]*[^ ]* [^ ]* [^ ]*) (?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  time_format "%a %b %d %R:%M:%S %Z %Y"
+  path /var/log/hue/*.out
+  tag hue_stdout
+  pos_file /var/log/td-agent/tmp/hue_stdout.pos
+</source>
+
+# hdfs log
+<source>
+  @type tail
+  @id hadoop_namenode_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*) (?<class>[^:]*): (?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/hadoop-hdfs/hadoop-cmf-*-NAMENODE-*.log.out
+  tag namenode
+  pos_file /var/log/td-agent/tmp/namenode.pos
+</source>
+
+# hdfs log
+<source>
+  @type tail
+  @id hadoop_datanode_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*) (?<class>[^:]*): (?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/hadoop-hdfs/hadoop-cmf-*-DATANODE-*.log.out
+  tag datanode
+  pos_file /var/log/td-agent/tmp/datanode.pos
+</source>
+
+# hdfs log
+<source>
+  @type tail
+  @id hadoop_journalnode_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*) (?<class>[^:]*): (?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/hadoop-hdfs/hadoop-cmf-*-JOURNALNODE-*.log.out
+  tag journalnode
+  pos_file /var/log/td-agent/tmp/journalnode.pos
+</source>
+
+# yarn nodemanager log
+<source>
+  @type tail
+  @id yarn_nodemanager_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*) (?<class>[^:]*): (?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/hadoop-yarn/hadoop-cmf-*-NODEMANAGER-*.log.out
+  tag nodemanager
+  pos_file /var/log/td-agent/tmp/nodemanager.pos
+</source>
+
+# yarn resourcemanager log
+<source>
+  @type tail
+  @id yarn_resourcemanager_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*) (?<class>[^:]*): (?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/hadoop-yarn/hadoop-cmf-*-RESOURCEMANAGER-*.log.out
+  tag resourcemanager
+  pos_file /var/log/td-agent/tmp/resourcemanager.pos
+</source>
+
+# zookeeper log
+<source>
+  @type tail
+  @id zookeeper_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) \[([^ ]*) - (?<level>[^ ]*)(\s+)\[(?<thread>[^ ].*)([^\@]*)@(0|[1-9][0-9]*)\] - (?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/zookeeper/zookeeper-cmf-*-SERVER-*.log
+  tag zookeeper
+  pos_file /var/log/td-agent/tmp/zookeeper.pos
+</source>
+
+
+# spark-history
+# uses two different timeformats:
+#16/03/31 13:34:03 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+#
+#2016-03-31 13:34:04,9572 ERROR Cidcache fs/client/fileclient/cc/cidcache.cc:1653 Thread: 20109 ClusterInfoRequest RPC error Connection reset by peer(104) for CLDB 10.10.100.91:7222
+<source>
+  @type tail
+  @id spark_history_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}|\d{2}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)(?<class>[^ ]*) (?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/spark/spark-*.log
+  tag sparkhistory
+  pos_file /var/log/td-agent/tmp/sparkHistoryServer.pos
+</source>
+
+# Drill
+#"2016-04-05 12:27:23,996 [main] INFO  o.apache.drill.exec.server.Drillbit - Drillbit environment: user.name="
+<source>
+  @type tail
+  @id drillbit_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*)(\s+)\[([^\]]*)\] (?<level>[^ ]*)(\s+)(?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/drill/drill-*/logs/drillbit.log
+  tag drillbits
+  pos_file /var/log/td-agent/tmp/drillbit.pos
+</source>
+
+# Drill sqlline
+# 2016-04-08 07:26:25,508 [main] INFO  o.a.drill.common.config.DrillConfig - Configuration and plugin file(s) identified in 228ms.
+<source>
+  @type tail
+  @id drill_sqlline_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*)(\s+)\[([^\]]*)\] (?<level>[^ ]*)(\s+)(?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/drill/drill-*/logs/sqlline.log
+  tag drillbitsSqlline
+  pos_file /var/log/td-agent/tmp/sqlline.pos
+</source>
+
+# Oozie
+# 2016-04-06 08:46:45,747  INFO XLogService:520 - SERVER[] Log4j configuration file [oozie-log4j.properties]
+<source>
+  @type tail
+  @id oozie_input
+  format multiline
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*)  (?<level>[^ ]*)(\s+)(?<class>[^ ]*)(\s+)-(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/oozie/oozie-cmf-*-OOZIE_SERVER-*.log.out
+  tag oozie
+  pos_file /var/log/td-agent/tmp/oozie.pos
+</source>
+
+# Oozie Ops
+# 2016-04-08 00:24:09,562  INFO oozieops:520 - Exiting null Entering NORMAL
+<source>
+  @type tail
+  @id oozie_ops_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*)  (?<level>[^ ]*)(\s+)(?<class>[^ ]*)(\s+)-(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/oozie/oozie-ops.log
+  tag oozieOps
+  pos_file /var/log/td-agent/tmp/oozie-ops.pos
+</source>
+
+# Oozie catalina
+# 2016-04-06 08:47:11,5512 ERROR Cidcache fs/client/fileclient/cc/cidcache.cc:1653 Thread: 23883 ClusterInfoRequest RPC error Connection reset by peer(104) for CLDB 10.10.100.92:7222
+# May 25, 2016 7:22:49 PM org.apache.catalina.startup.Catalina load
+<source>
+  @type tail
+  @id oozie_catalina_input
+  format multiline_grok
+  multiline_start_regexp /\d{4}-\d{1,2}-\d{1,2}|\w{3}(\s+)\d{1,2}, \d{4} \d{1,2}:\d{1,2}:\d{1,2}/
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{LOGLEVEL:level}(\s+)%{WORD}(\s+)%{LINENUM:class}(\s+)Thread:\s+%{NUMBER:thread}\s+%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern (?<my_event_time>%{MONTH}%{SPACE}%{MONTHDAY}, %{YEAR}%{SPACE}%{TIME}%{SPACE}(?:AM|PM))(\s+)%{LINENUM:class}%{SPACE}%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{TIMESTAMP_ISO8601:my_event_time}(\s+)%{GREEDYDATA:message}
+  </grok>
+  <grok>
+    pattern %{GREEDYDATA:message}
+  </grok>
+  time_format "%Y-%m-%d %H:%M:%S,%4N"
+  time_key my_event_time
+  keep_time_key true
+  custom_pattern_path /tmp/grok_patterns
+  path /var/log/oozie/catalina.out
+  tag oozieCatalina
+  pos_file /var/log/td-agent/tmp/catalina.pos
+</source>
+
+# sqoop log
+<source>
+  @type tail
+  @id sqoop_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)\[([^:]*): (?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/sqoop2/sqoop-cmf-*-SQOOP_SERVER-*.log.out
+  tag sqoop
+  pos_file /var/log/td-agent/tmp/sqoop.pos
+</source>
+
+# impala log
+<source>
+  @type tail
+  @id catalog_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)\[([^:]*): (?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/catalogd/catalogd.*
+  tag impalacatalog
+  pos_file /var/log/td-agent/tmp/catalog.pos
+</source>
+
+# impala log
+<source>
+  @type tail
+  @id statestore_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)\[([^:]*): (?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/statestore/statestored.*
+  tag impalastatestore
+  pos_file /var/log/td-agent/tmp/statestore.pos
+</source>
+
+# impala log
+<source>
+  @type tail
+  @id daemon_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)\[([^:]*): (?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/impalad/impalad.*
+  tag impalad
+  pos_file /var/log/td-agent/tmp/daemon.pos
+</source>
+
+# sentry log
+<source>
+  @type tail
+  @id sentry_input
+  format multiline
+  format_firstline /\d{4}-\d{1,2}-\d{1,2}/
+  format1 /^(?<my_event_time>[^ ]* [^ ]*) (?<level>[^ ]*)(\s+)\[([^:]*): (?<class>[^ ]*)(\s+)(?<message>.*)$/
+  time_key my_event_time
+  keep_time_key true
+  path /var/log/sentry/hadoop-cmf-*-SENTRY_SERVER-*.log.out
+  tag sentry
+  pos_file /var/log/td-agent/tmp/sentry.pos
+</source>
+
+<filter **>
+  @type record_transformer
+  enable_ruby true
+  <record>
+    fqdn "#{Socket.gethostname}"
+    clusterId "8893881286923547176"
+    # this allows us to store the event_time as a date. Otherwise
+    # ES barfs because of the ' ' between date and time instead of the 'T'
+    # Alternative is to store event_time as a string
+    #event_time ${ (defined?(my_event_time))? my_event_time.gsub(' ','T') : Time.now.iso8601(3)}
+    # XXX Checking for defined above always returns false..
+    event_time ${record.has_key?("my_event_time")? (Time.parse(record['my_event_time']).iso8601(3)) : Time.now.iso8601(3)}
+
+    #event_time ${my_event_time.gsub(' ','T')}
+    # this should have worked to allow the @timestampe to have miliseconds
+    # but it doesn't - looks like we have to wait for 0.14...
+    # @timestamp ${time.strftime('%Y-%m-%dT%H:%M:%S.%L%z')}
+  </record>
+  remove_keys my_event_time
+</filter>
+
+<match *>
+  @type copy
+  <store>
+    @include /tmp/es_config.conf
+    include_tag_key true
+    tag_key service_name
+  </store>
+  #<store>
+  #</store>
+</match>
+
+
+## File output
+## match tag=local.** and write to file
+#<match local.**>
+#  @type file
+#  path /var/log/fluentd/fluentd-0.14.00/var/log/fluentd/access
+#</match>
+
+## Forwarding
+## match tag=system.** and forward to another fluentd server
+#<match system.**>
+#  @type forward
+#  host 192.168.0.11
+#  # secondary host is optional
+#  <secondary>
+#    host 192.168.0.12
+#  </secondary>
+#</match>
+
+## Multiple output
+## match tag=td.*.* and output to Treasure Data AND file
+#<match td.*.*>
+#  @type copy
+#  <store>
+#    @type tdlog
+#    apikey API_KEY
+#    auto_create_table
+#    buffer_type file
+#    buffer_path /var/log/fluentd/fluentd-0.14.00/var/log/fluentd/buffer/td
+#  </store>
+#  <store>
+#    @type file
+#    path /var/log/fluentd/fluentd-0.14.00/var/log/fluentd/td-%Y-%m-%d/%H.log
+#  </store>
+#</match>
+
+
+## match fluent's internal events
+#<match fluent.**>
+#  @type null
+#</match>
+
+## match not matched logs and write to file
+#<match **>
+#  @type file
+#  path /var/log/fluent/else
+#  compress gz
+#</match>
+
+## Label: For handling complex event routing
+#<label @STAGING>
+#  <match system.**>
+#    @type forward
+#    @id staging_forward_output
+#    <server>
+#      host 192.168.0.101
+#    </server>
+#  </match>
+#</label>
